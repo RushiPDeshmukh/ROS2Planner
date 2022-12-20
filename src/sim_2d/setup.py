@@ -15,11 +15,12 @@ setup(
     zip_safe=True,
     maintainer='rushi',
     maintainer_email='rdeshmukh@wpi.edu',
-    description='TODO: Package description',
+    description='This package contains pygame 2D simulator node, various planner nodes, car node.',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            "maze_simulator = sim_2d.maze_simulator:main"
         ],
     },
 )
