@@ -3,7 +3,7 @@
 <package format="3">
   <name>sim_2d</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>This package contains pygame 2D simulator node, various planner nodes, car node.</description>
   <maintainer email="rdeshmukh@wpi.edu">rushi</maintainer>
   <license>Apache-2.0</license>
 
