@@ -1,0 +1,5 @@
+
+---
+int64 nodes
+int64[] data
+# use the nodes variable to convert the 1D array data into 2D adjacency matrix
