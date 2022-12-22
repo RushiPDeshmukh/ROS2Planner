@@ -7,17 +7,11 @@ from graph_interfaces.srv import GetGraph
 from rclpy.node import Node
 import pygame
 import numpy as np
-#parameters 
-cols = 16
-rows  = 12
-magnification_factor = 20
-width = cols*magnification_factor
-height = rows*magnification_factor
 
+#parameters 
+magnification_factor = 20
 WHITE = (250,250,250)
 BLACK = (0,0,0)
-
-actions = ["N","S","E","W"]
 
 class MazeFetcher(Node):
     def __init__(self):
@@ -56,32 +50,37 @@ class grid_node:
             pygame.draw.line(win,BLACK,(self.x,self.y),(self.x,self.y+self.node_width),3)
 
 class Simulator_Node(Node):
-    def __init__(self,adj_matrix,win):
+    def __init__(self,adj_matrix,nodes,cols,rows,win):
         super().__init__("Simulator_Node")
-        self.get_logger().info("Welcome to the simulator node:")
-        self.create_timer(1.0,self.timer_callback)
         self.counter=0
         self.adj_matrix = adj_matrix
-        self.createMaze()
         self.win = win
+        self.nodes = nodes
+        self.cols = cols
+        self.rows = rows
+        self.createMaze()
+        
+        self.get_logger().info("Welcome to the simulator node:")
+        self.create_timer(1.0,self.timer_callback)
 
     def timer_callback(self):
         self.counter +=1
-        self.get_logger().info(str(self.counter))
+        self.get_logger().info("Simulation Time:%s"+str(self.counter))
         self.draw()
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                pygame.quit()
+                rclpy.shutdown()
 
     def createMaze(self):
-        nodes = len(self.adj_matrix)
-        cols = int(nodes**0.5)
-        self.Maze = np.empty((cols,cols),dtype=grid_node)
-        
-        for i in range(nodes):
-            curr_node = (i//cols,i%cols)
+        cols = self.cols
+        self.Maze = np.empty((self.cols,self.rows),dtype=grid_node)
+        for i in range(self.nodes):
+            curr_node = (i%cols,i//cols)
             self.Maze[curr_node[0]][curr_node[1]] = grid_node(curr_node)
-            print("Curr_Node :",curr_node)
-            for j in range(nodes):
+            for j in range(self.nodes):
                 if(self.adj_matrix[i][j]==1):
-                    next_node = (j//cols,j%cols)
+                    next_node = (j%cols,j//cols)
                     if next_node[1]==curr_node[1]-1:
                         dir = "N"
                     elif next_node[1]==curr_node[1]+1:
@@ -90,8 +89,6 @@ class Simulator_Node(Node):
                         dir = "E"  
                     elif next_node[0]==curr_node[0]-1:
                         dir = "W"   
-                    
-                    print("Next_Node :",next_node," and the directions is ",dir)
                     self.Maze[curr_node[0]][curr_node[1]].add_connection(next_node,dir)
     
     def draw(self):
@@ -104,7 +101,7 @@ class Simulator_Node(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    win = pygame.display.set_mode((width,height))
+    
     maze_fetcher = MazeFetcher()
     maze_fetcher.send_request()
 
@@ -114,13 +111,18 @@ def main(args=None):
             try:
                 response = maze_fetcher.future.result()
                 nodes = response.nodes
+                cols = response.cols
+                rows = response.rows
                 flatten_maze = response.data
+                width = cols*magnification_factor
+                height = rows*magnification_factor
+                win = pygame.display.set_mode((width,height))
                 adj_matrix = np.zeros((nodes,nodes))
                 for iter,value in enumerate(flatten_maze):
                     i = iter%nodes
                     j = iter//nodes
                     adj_matrix[i][j] = value
-                maze_fetcher.get_logger().info('The matrix length%d' % (len(adj_matrix)))
+                maze_fetcher.get_logger().info('The maze has been succesfully fetched!')
             except Exception as e:
                 maze_fetcher.get_logger().info(
                     'Service call failed %r' % (e,))
@@ -128,7 +130,7 @@ def main(args=None):
     
     
 
-    sim1 = Simulator_Node(adj_matrix,win)
+    sim1 = Simulator_Node(adj_matrix,nodes,cols,rows,win)
     rclpy.spin(sim1)
 
     rclpy.shutdown()

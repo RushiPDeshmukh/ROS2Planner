@@ -5,26 +5,19 @@ from rclpy.node import Node
 import numpy as np
 import random
 
-#parameters 
-cols = 5
-rows  = 5
-magnification_factor = 20
-width = cols*magnification_factor
-height = rows*magnification_factor
 
-WHITE = (250,250,250)
-BLACK = (0,0,0)
-
-
+#parameters
 actions = ["N","S","E","W"]
 
 
 #ROS2 Code 
 class MazeGenerator(Node):
 
-    def __init__(self):
+    def __init__(self,cols,rows):
         super().__init__('MazeGenerator')
         self.maze = Maze(cols,rows)
+        self.cols = cols
+        self.rows = rows
         self.srv = self.create_service(GetGraph, 'getMaze', self.get_graph_callback)     
         self.get_logger().info('Node Created successfully\n')  
         self.get_logger().info('Waiting for request...\n') 
@@ -32,6 +25,8 @@ class MazeGenerator(Node):
         self.maze.generate()
         response.nodes, matrix= self.maze.generate_adj_matrix()
         response.data = [int(i) for i in np.reshape(matrix,-1)]
+        response.cols = self.cols
+        response.rows = self.rows
 
         self.get_logger().info('Incoming request\n') # CHANGE
 
@@ -44,9 +39,6 @@ class grid_node:
         self.loc = loc
         self.connected_nodes = []
         self.possible_moves = []
-        self.node_width = magnification_factor
-        self.x = loc[0]*self.node_width
-        self.y = loc[1]*self.node_width
 
     def add_connection(self,connected_node_loc,heading_direction):
         self.connected_nodes.append(connected_node_loc)
@@ -111,9 +103,9 @@ class Maze:
         valid_actions = []
         if(y-1 >= 0) and (x,y-1) not in visited:
             valid_actions.append("N")
-        if(y+1 < rows) and (x,y+1) not in visited:
+        if(y+1 < self.rows) and (x,y+1) not in visited:
             valid_actions.append("S")
-        if(x+1 < cols) and (x+1,y) not in visited:
+        if(x+1 < self.cols) and (x+1,y) not in visited:
             valid_actions.append("E")
         if(x-1 >= 0) and (x-1,y) not in visited:
             valid_actions.append("W")
@@ -123,10 +115,10 @@ class Maze:
     
 
 
-def main(args=None):
+def main(cols =20   ,rows = 12,args=None):
     rclpy.init(args=args)
 
-    Generator = MazeGenerator()
+    Generator = MazeGenerator(cols,rows)
 
     rclpy.spin(Generator)
 
