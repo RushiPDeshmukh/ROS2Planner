@@ -5,11 +5,6 @@ from rclpy.node import Node
 import numpy as np
 import random
 
-
-#parameters
-actions = ["N","S","E","W"]
-
-
 #ROS2 Code 
 class MazeGenerator(Node):
 
