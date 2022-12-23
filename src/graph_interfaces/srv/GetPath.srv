@@ -1,3 +1,7 @@
 Edge target
+int64 nodes
+int64 rows
+int64 cols
+int64[] data
 ---
 int64[] path
