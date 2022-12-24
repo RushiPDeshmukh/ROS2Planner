@@ -11,13 +11,14 @@ class MazeGenerator(Node):
     def __init__(self,cols,rows):
         super().__init__('MazeGenerator')
         self.maze = Maze(cols,rows)
+        self.maze.generate()
         self.cols = cols
         self.rows = rows
         self.srv = self.create_service(GetGraph, 'getMaze', self.get_graph_callback)     
         self.get_logger().info('Node Created successfully\n')  
         self.get_logger().info('Waiting for request...\n') 
     def get_graph_callback(self, request, response):
-        self.maze.generate()
+        
         response.nodes, matrix= self.maze.generate_adj_matrix()
         response.data = [int(i) for i in np.reshape(matrix,-1)]
         response.cols = self.cols

@@ -21,7 +21,9 @@ setup(
     entry_points={
         'console_scripts': [
             "maze_simulator = sim_2d.maze_simulator:main",
-            "maze_generator = sim_2d.maze_generator:main"
+            "maze_generator = sim_2d.maze_generator:main",
+            "player = sim_2d.player:main",
+            "planner = sim_2d.planner:main"
         ],
     },
 )

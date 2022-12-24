@@ -4,6 +4,7 @@
 
 import rclpy 
 from graph_interfaces.srv import GetGraph
+from graph_interfaces.msg import PlayerPos
 from rclpy.node import Node
 import pygame
 import numpy as np
@@ -12,6 +13,8 @@ import numpy as np
 magnification_factor = 20
 WHITE = (250,250,250)
 BLACK = (0,0,0)
+GREEN = (0,250,0)
+RED = (250,0,0)
 
 class MazeFetcher(Node):
     def __init__(self):
@@ -34,12 +37,25 @@ class grid_node:
         self.node_width = magnification_factor
         self.x = loc[0]*self.node_width
         self.y = loc[1]*self.node_width
+        self.is_start = False
+        self.is_goal = False
+
+    def set_start(self,value):
+        self.is_start = value
+
+    def set_goal(self,value):
+        self.is_goal = value
 
     def add_connection(self,connected_node_loc,heading_direction):
         self.connected_nodes.append(connected_node_loc)
         self.possible_moves.append(heading_direction)
 
     def draw(self,win):
+        if self.is_start:
+            pygame.draw.rect(win,RED,(self.x,self.y,self.node_width,self.node_width))
+        if self.is_goal:
+            pygame.draw.rect(win,GREEN,(self.x,self.y,self.node_width,self.node_width))
+
         if "N" not in self.possible_moves:
             pygame.draw.line(win,BLACK,(self.x,self.y),(self.x+self.node_width,self.y),3)
         if "S" not in self.possible_moves:
@@ -49,6 +65,7 @@ class grid_node:
         if "W" not in self.possible_moves:
             pygame.draw.line(win,BLACK,(self.x,self.y),(self.x,self.y+self.node_width),3)
 
+ 
 class Simulator_Node(Node):
     def __init__(self,adj_matrix,nodes,cols,rows,win):
         super().__init__("Simulator_Node")
@@ -58,12 +75,25 @@ class Simulator_Node(Node):
         self.nodes = nodes
         self.cols = cols
         self.rows = rows
+        self.players = {}
+        self.prev_start = 0
+        self.prev_goal = 0
         self.createMaze()
-        
+        self.draw()
+        self.subscriber_ = self.create_subscription(PlayerPos,"player",self.player_callback, 10)
         self.get_logger().info("Welcome to the simulator node:")
-        self.create_timer(1.0,self.timer_callback)
-
-    def timer_callback(self):
+        
+        
+    def player_callback(self,msg):
+        self.set_start(msg.start)
+        self.set_goal(msg.goal)
+        if  msg.name in self.players.keys():
+            self.set_start(self.players[msg.name][0],False)
+        
+        self.players[msg.name] = (msg.start,msg.goal)
+        if(msg.start == msg.goal):
+            self.set_start(msg.start,False)
+            self.set_goal(msg.goal,False)
         self.counter +=1
         self.get_logger().info("Simulation Time:%s"+str(self.counter))
         self.draw()
@@ -71,6 +101,16 @@ class Simulator_Node(Node):
             if ev.type == pygame.QUIT:
                 pygame.quit()
                 rclpy.shutdown()
+    
+    def set_start(self,start,value = True):
+        i,j = start%self.cols, start//self.cols
+        self.Maze[i][j].set_start(value)
+    
+
+    def set_goal(self,goal,value = True):
+        i,j = goal%self.cols, goal//self.cols
+        self.Maze[i][j].set_goal(value)
+
 
     def createMaze(self):
         cols = self.cols
