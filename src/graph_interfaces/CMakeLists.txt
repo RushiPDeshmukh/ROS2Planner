@@ -14,6 +14,7 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Edge.msg"
+  "msg/PlayerPos.msg"
   "srv/GetGraph.srv"
   "srv/GetPath.srv"
   # Add packages that above messages depend on, in this case geometry_msgs for Sphere.msg
