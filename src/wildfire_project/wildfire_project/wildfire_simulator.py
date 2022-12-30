@@ -21,9 +21,12 @@ import time
 
 #TO-DO
 # 1. define a random patch() function this function defines a obstacle shape as numpy array
-# 2. Define a rclpy node to communicate with the player
-# 3. Define a rclpy node to send the the obstacle field information to the player 
+# 2. Define a rclpy node to subscribe to the topic "fire_truck_pos" 
+# 3. Define a rclpy Server node to send the the obstacle field information to the player in a 1D array as a flatten adjMatrix
+# 4. Define a rclpy node to publish the list of fires in the simulated forest on the topic "forest_fire_pos"
 
+
+#Task 1 : Generate the obstacle field
 class Bush:
     def __init__(self,pos, tree_width = 10) -> None:
         self.pos = pos #stores the topLeft corner pos of the forest patch
@@ -31,11 +34,7 @@ class Bush:
         self.y = pos[1]
         self.tree_width = tree_width #this variable sets the width of single unit of the patch.
         self.data,self.shape = random_patch() #this function returns a random forest shape and its shape variable
-        self.type = "bush"
-        self.surface = pygame.image.load(os.path.abspath('src/utils/bush.png'))
-        self.surface = pygame.transform.scale(self.surface,(self.tree_width,self.tree_width))
-        self.rects = []
-        self.fire_start_time = 0
+        self.on_fire = False
 
     def get_data(self):
         return self.pos,self.data,self.shape
@@ -45,66 +44,20 @@ class Bush:
         
         return self.data,self.shape
 
-    def set_fire(self,t):
-        self.type = "fire"
-        self.fire_start_time = t
-        self.surface = pygame.image.load(os.path.abspath('src/utils/fire.png'))
-        self.surface = pygame.transform.scale(self.surface,(self.tree_width,self.tree_width))
+    def set_fire(self):
+        self.on_fire = True
+        
 
-    def extinguish_fire(self,t):
-        self.type = "bush"
-        self.fire_start_time = t
-        self.surface = pygame.image.load(os.path.abspath('src/utils/bush.png'))
-        self.surface = pygame.transform.scale(self.surface,(self.tree_width,self.tree_width))
-    def on_fire(self):
-        return self.type == 'fire'
-    
-    def get_rects(self):
+    def extinguish_fire(self):
+        self.on_fire = False
+
+    def get_boundary(self):
         x,y = self.pos
-        self.rects = []
-        for i in range(self.shape[0]):
-            for j in range(self.shape[1]):
-                if self.data[i][j] == 1:
-                    rect = self.surface.get_rect()
-                    rect.topleft = (x+(self.tree_width*i),y+(self.tree_width*j))
-                    self.rects.append(rect)
-        return self.rects
-    def nearby_bush(self):
-        area = pygame.Rect(0,0,120,120)
-        area.center = (self.x + self.shape[0]*self.tree_width//2, self.y + self.shape[1]*self.tree_width//2)
-        return area
-    def check_nearby_bush(self,bush):
-        area = self.nearby_bush()
-        indices =  pygame.Rect.collidelistall(area,bush.get_rects())
-        if len(indices) == len(bush.get_rects()):
-            return True
-        return False
-    def spread_fire(self,bushes,t):
-        if t - self.fire_start_time >= 20:
-            self.fire_start_time = t
-            for bush in bushes:
-                if self.check_nearby_bush(bush):
-                    bush.set_fire(t)
-    
-    def check_collision(self,rect_list):
-        rects = self.get_rects()
-        collision = False
-        for rect in rects:
-                index = pygame.Rect.collidelist(rect,rect_list)
-                if index != -1:
-                    collision == True
-                    break
-        return collision
-    
-    def nearby_car(self):
-        area = pygame.Rect(0,0,self.shape[0]*self.tree_width+40,self.shape[1]*self.tree_width*40)
-        area.center = (self.x + self.shape[0]*self.tree_width//2, self.y + self.shape[1]*self.tree_width//2)
-        return area
-    def is_nearby(self,car_rect):
-        area = self.nearby_car()
-        if pygame.Rect.colliderect(area,car_rect):
-            return True
-        return False
+        center_x,center_y = ((self.shape[0]*self.tree_width + x)//2,(self.shape[1]*self.tree_width + y)//2)
+        radius = ((center_x-x)**2 + (center_y+y)**2)**0.5
+        center = center_x,center_y
+        return (center,radius)
+
     def draw(self,win):
         x,y = self.pos
         # rect = self.nearby_bush()
@@ -123,25 +76,9 @@ class Forest:
         self.number_of_bushes = 0
         self.bushes = []
         self.grid_data = np.zeros((self.width//(self.bush_width),self.width//(self.bush_width)))
-
-    def is_collision(self,rect_list):
-        collision =False
-        for bush in self.bushes:
-            collision = bush.check_collision(rect_list)
-            if collision == True:
-                break
-        return collision
     
-    def can_extinguish(self,rect,check_fire_only = True):
-        bush_list = []
-        for bush in self.bushes:
-            if check_fire_only:
-                if bush.is_nearby(rect) and bush.on_fire():
-                    bush_list.append(bush)
-            else:
-                if bush.is_nearby(rect):
-                    bush_list.append(bush)
-        return bush_list
+    def can_extinguish(self,car_boundary):
+        pass
 
     def create(self):
         """This function will randomly generate the Bush objects to populate the forest
@@ -186,27 +123,11 @@ class Forest:
         """This function will randomly choose a bush to set on fire.
            This function will choose a bush only if it is not already on fire.
         """
-        done = False
-        while not done:
-            random_index = np.random.randint(0,len(self.bushes))
-            if not self.bushes[random_index].on_fire():
-                print("fire!")
-                self.bushes[random_index].set_fire(t)
-                done = True
-                goal = (self.bushes[random_index].pos[0]//50,self.bushes[random_index].pos[1]//50,0)
-        return goal,self.bushes[random_index]
-    def get_on_fire(self):
-        fire_list = []
-        for bush in self.bushes:
-            if bush.on_fire:
-                fire_list.append((bush,bush.fire_start_time))
-        return fire_list
-
+        pass
     
-    def spread_fire(self,t):
-        for bush in self.bushes:
-            if bush.on_fire():
-                bush.spread_fire(self.bushes,t)
+    def get_on_fire(self):
+        pass
+
     
     def draw(self,win):
         for bush in self.bushes:
