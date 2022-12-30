@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(cpp-planners)
+project(cpp-planner)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -9,6 +9,14 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(graph_interfaces REQUIRED)
+
+add_executable(bfsserver src/BFSPlanner.cpp)
+ament_target_dependencies(bfsserver
+rclcpp graph_interfaces)
+
+install(TARGETS
+  bfsserver
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
