@@ -14,6 +14,7 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Edge.msg"
+  "msg/Coordinates.msg"
   "msg/PlayerPos.msg"
   "srv/GetGraph.srv"
   "srv/GetPath.srv"
