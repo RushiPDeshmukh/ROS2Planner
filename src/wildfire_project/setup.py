@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+           "Forest_Simulator= wildfire_project.wildfire_simulator:main"
         ],
     },
 )

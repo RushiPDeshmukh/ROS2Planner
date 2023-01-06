@@ -15,13 +15,19 @@
 """
 import numpy as np
 import pygame
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Int64MultiArray
+from graph_interfaces.msg import Coordinates
 
 #TO-DO
-# 1. define a random patch() function this function defines a obstacle shape as numpy array
-# 2. Define a rclpy node to subscribe to the topic "fire_truck_pos" 
+# 1. define a random patch() function this function defines a obstacle shape as numpy array -------------------------------------DONE
+# 2. Define a rclpy node to subscribe to the topic "fire_truck_pos" -------------------------------------------------------------DONE
 # 3. Define a rclpy Server node to send the the obstacle field information to the player in a 1D array as a flatten adjMatrix
-# 4. Define a rclpy node to publish the list of fires in the simulated forest on the topic "forest_fire_pos"
+# 4. Define a rclpy node to publish the list of fires in the simulated forest on the topic "forest_fire_pos" --------------------DONE
 
+BLACK = (0,0,0)
+WHITE = (255,255,255)
 
 #Task 1 : Generate the obstacle field
 class Bush:
@@ -69,20 +75,26 @@ class Bush:
         return (x,y)
 
 
-class Forest:
+class Forest_Node():
     def __init__(self,coverage = 10,width = 500,bush_width = 10) -> None:
         self.coverage = coverage
         self.width = width
         self.bush_width = bush_width
         self.number_of_bushes = 0
         self.bushes = []
-        
-        # self.grid_data = np.zeros((self.width//(self.bush_width),self.width//(self.bush_width))) CHANGE
+        self.win = pygame.display.set_mode((1000,700))
+        self.surf1 = pygame.surface.Surface((500,500))
+        self.current_fires = []
+        self.create()
+        self.extinguish_boundary_radius = 30
+        self.grid_data = np.zeros((self.width//(self.bush_width),self.width//(self.bush_width)))
     
-    def can_extinguish(self,car_boundary):
-        pass
-
-
+    def extinguish_fire(self,car_pos):
+        for bush in self.bushes:
+            bush_center = bush.get_rect().center
+            distance = ((car_pos[0]-bush_center[0])**2 + (car_pos[1]-bush_center[1])**2)**0.5
+            if distance<self.extinguish_boundary_radius:
+                bush.extinguish_fire()
 
     def create(self):
         """This function will randomly generate the Bush objects to populate the forest
@@ -93,10 +105,10 @@ class Forest:
         total_area = (self.width**2) #total area of forest
         coverage = occupied*100//total_area #current coverage of forest
         while coverage<self.coverage:
-            print("Current Coverage: ",coverage)
             #random pos in the forest
-            random_x = np.random.randint(0,self.width)
-            random_y = np.random.randint(0,self.width)
+            random_x = np.random.randint(0,self.width//self.bush_width)*self.bush_width
+            random_y = np.random.randint(0,self.width//self.bush_width)*self.bush_width
+
             #generate the bush object at this location
             bush = Bush((random_x,random_y),self.bush_width)
             _,shape = bush.get_data()
@@ -111,10 +123,11 @@ class Forest:
             #check if the bush fits inside the forest and add to the list of bushes 
             if not self.is_collision(rect):
                 self.bushes.append(bush)
-                print("pos: ",bush.pos)
-                print("shape:",bush.shape )
                 self.number_of_bushes +=1
                 occupied += shape[0]*shape[1]*self.bush_width**2
+                for i in range(shape[0]):
+                    for j in range(shape[1]):
+                        self.grid_data[random_x+i][random_y+j]=1
             coverage = occupied*100//total_area
 
     def is_collision(self,rect2):
@@ -127,43 +140,73 @@ class Forest:
     def get_grid(self):
         return self.grid_data
     
-    def trigger_fire(self,t):
+    def trigger_fires(self):
         """This function will randomly choose a bush to set on fire.
            This function will choose a bush only if it is not already on fire.
         """
-        pass
+        random_bush = np.random.randint(0,len(self.bushes))
+        self.bushes[random_bush].set_fire()
+        if random_bush not in self.current_fires:
+            self.current_fires.append(random_bush)
+
+        return self.current_fires
     
     def get_on_fire(self):
         pass
 
     
-    def draw(self,surface):
+    def draw(self):
+        self.win.fill(WHITE)
+        self.surf1.fill(WHITE)
+        pygame.draw.rect(self.surf1,BLACK,(0,0,500,500),3,8)
         for bush in self.bushes:
-            bush.draw(surface)
-
-
-if __name__ == "__main__":
+            bush.draw(self.surf1)
+        self.win.blit(self.surf1,(240,100))
     
-    BLACK = (0,0,0)
-    WHITE = (255,255,255)
-    win = pygame.display.set_mode((1000,700))
-    surf1 = pygame.surface.Surface((500,500))
-    
-    run = True
-    pos = (0,0)
-    f = Forest()
-    f.create()
-   
-    while run:
-        win.fill(WHITE)
-        surf1.fill(WHITE)
-        pygame.draw.rect(surf1,BLACK,(0,0,500,500),3,8)
+    def run(self):
         events = pygame.event.get()
         for ev in events:
             if ev.type == pygame.QUIT:
                 run = False
                 pygame.quit()
-        f.draw(surf1)
-        win.blit(surf1,(240,100))
+        self.draw()
         pygame.display.update()
-        pygame.time.wait(1000)
+
+
+class Fire_Notifier(Node):
+    def __init__(self,forest):
+        super().__init__("Fire_Notifier")
+        self.forest = forest
+        self.publisher_ = self.create_publisher(Int64MultiArray,"Current_Fires",10)
+        timer_period = 1  # seconds
+        self.timer = self.create_timer(timer_period, self.timer_callback)                            
+
+    def timer_callback(self):
+        self.forest.run()
+        msg = Int64MultiArray()
+        msg.data = self.forest.trigger_fires()
+        self.publisher_.publish(msg)
+
+class Fire_Truck_POS_Subscriber(Node):
+    def __init__(self,forest):
+        super().__init__("Fire_Truck_POS_Subscriber")
+        self.forest = forest
+        self.subscriber_ = self.create_subscription(Coordinates,"Fire_Truck_Pos",self.subscriber_callback)                         
+
+    def subscriber_callback(self,msg):
+        pos = msg.x,msg.y
+        self.forest.extingush_fire(pos)
+        
+        
+
+def main(cols =20   ,rows = 12,args=None):
+    rclpy.init(args=args)
+    f = Forest_Node()
+    Fire_Notifier_Node = Fire_Notifier(f)
+
+    rclpy.spin(Fire_Notifier_Node)
+
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
